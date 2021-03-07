@@ -1,4 +1,7 @@
 name: rl_env
+channels:
+  - pytorch
+  - conda-forge
 dependencies:
   - python=3.7
   - sympy
@@ -7,6 +10,10 @@ dependencies:
   - keras=2.2.4
   - jupyter
   - tqdm
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cudatoolkit=10.2
   - pip:
         - gym
         - keras-rl
