@@ -7,19 +7,32 @@ from lifting_rl.ddpg.utils import OUNoise, NormalizedEnv, Memory
 
 
 class DDPGagent:
-    def __init__(self, env, hidden_size=256, actor_learning_rate=1e-4, critic_learning_rate=1e-3, gamma=0.99, tau=1e-2,
-                 max_memory_size=50000, device='cpu'):
+    def __init__(
+        self,
+        env,
+        hidden_size=256,
+        actor_learning_rate=1e-4,
+        critic_learning_rate=1e-3,
+        gamma=0.99,
+        tau=1e-2,
+        max_memory_size=50000,
+        device='cpu',
+        batch_size=64
+    ):
         # Params
-        self.num_states = env.observation_space.shape[0]
+        self.num_states = env.state_space.shape[0]
         self.num_actions = env.action_space.shape[0]
         self.gamma = gamma
         self.tau = tau
         self.device = device
+        self.batch_size = batch_size
         # Networks
         self.actor = Actor(self.num_states, hidden_size, self.num_actions).to(device)
         self.actor_target = Actor(self.num_states, hidden_size, self.num_actions).to(device)
         self.critic = Critic(self.num_states + self.num_actions, hidden_size, self.num_actions).to(device)
         self.critic_target = Critic(self.num_states + self.num_actions, hidden_size, self.num_actions).to(device)
+
+        self.noise = OUNoise(env.action_space)
 
         for target_param, param in zip(self.actor_target.parameters(), self.actor.parameters()):
             target_param.data.copy_(param.data)
@@ -33,15 +46,25 @@ class DDPGagent:
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=actor_learning_rate)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=critic_learning_rate)
 
-    def get_action(self, state):
+    def reset(self):
+        self.noise.reset()
+
+    def get_action(self, state, step, add_noise=True):
         device = self.device
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
         action = self.actor.forward(state)
         action = action.detach().cpu().numpy()[0, 0]
-        return action
+        if add_noise:
+            action = self.noise.get_action(action, step)
+        return action, None
 
-    def update(self, batch_size):
-        states, actions, rewards, next_states, _ = self.memory.sample(batch_size)
+    def finish_step(self, state, action, new_state, reward, done, meta):
+        self.memory.push(state, action, reward, new_state, done)
+
+    def update(self):
+        if len(self.memory) < self.batch_size:
+            return
+        states, actions, rewards, next_states, _ = self.memory.sample(self.batch_size)
         device = self.device
         states = torch.FloatTensor(states).to(device)
         actions = torch.FloatTensor(actions).to(device)

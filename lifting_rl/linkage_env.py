@@ -138,11 +138,13 @@ class LinkageEnv(gym.Env):
         self.cur_step += 1
 
         pos_reward = (
-            -sum(abs(self.state[: self.n_links] - self.goal_pos[: self.n_links])) ** 2
+            -sum(
+                (self.state[: self.n_links] - self.goal_pos[: self.n_links]) ** 2
+            )
         )
-        speed_reward = -sum(abs(self.state[self.n_links :])) ** 2
+        speed_reward = -sum(self.state[self.n_links :] ** 2)
         control_reward = -sum(abs(self.u)) ** 2
-        reward = (pos_reward + 0.1 * speed_reward + 0.001 * control_reward) / 288
+        reward = (pos_reward + 0.1 * speed_reward + 0.001 * control_reward)
         if self.verbose:
             print(f"\t after state = {self.state}")
             print(f"\t after trj = {self.coordinates[next_step]}")

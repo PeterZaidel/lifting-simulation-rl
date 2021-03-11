@@ -7,7 +7,7 @@ import torch.optim as optim
 
 
 class OUActionNoise(object):
-    def __init__(self, mu, sigma=0.15, theta=0.3, dt=1e-2, x0=None):
+    def __init__(self, mu, sigma=0.05, theta=0.05, dt=1e-2, x0=None):
         self.theta = theta
         self.mu = mu
         self.sigma = sigma
@@ -196,6 +196,9 @@ class Agent(object):
         layer1_size=400,
         layer2_size=300,
         batch_size=64,
+        sigma=0.05,
+        theta=0.05,
+        dt=1e-2
     ):
         self.gamma = gamma
         self.tau = tau
@@ -332,7 +335,7 @@ class Agent(object):
         self.target_actor.save_checkpoint()
         self.target_critic.save_checkpoint()
 
-    def save_models(self):
+    def load_models(self):
         self.actor.load_checkpoint()
         self.critic.load_checkpoint()
         self.target_actor.load_checkpoint()
