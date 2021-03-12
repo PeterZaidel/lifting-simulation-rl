@@ -48,8 +48,8 @@ def kane(n=5, mode="rigid_body", hands_load=False):
 
     km = KanesMethod(N, q_ind=q, u_ind=u, kd_eqs=kindiffs)
     fr, frstar = km.kanes_equations(phys_objs, loads=loads)
-    # fr.simplify()
-    # frstar.simplify()
+    # fr = fr.simplify()
+    # frstar = frstar.simplify()
     dynamic = q + u + f
     dummy_symbols = [Dummy() for i in dynamic]
     dummy_dict = dict(zip(dynamic, dummy_symbols))

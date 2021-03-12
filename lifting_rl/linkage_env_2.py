@@ -47,10 +47,12 @@ class LinkageEnvV2(gym.Env):
         path: str,
         w_params: dict,
         target_pos: Optional[np.ndarray] = None,
-        verbose: bool = False
+        verbose: bool = False,
+        use_scipy_integration: bool = False
     ):
         self.viewer = None
         self.n_links = w_params["N_LINKS"]
+        self.use_scipy_integration = use_scipy_integration
 
         M, F, m_params = kane(n=w_params["N_LINKS"])
         self.M_func = lambdify(m_params, M)
@@ -150,14 +152,18 @@ class LinkageEnvV2(gym.Env):
         cur_target_pos = self.get_cur_target_pos()
         reward = self.reward(state, cur_target_pos, u)
 
-        # RK-4th order integration step
-        k1 = f(x, t, args)
-        k2 = f(x + (dt / 2) * k1, t + dt / 2, args)
-        k3 = f(x + (dt / 2) * k2, t + dt / 2, args)
-        k4 = f(x + dt * k3, t + dt / 2, args)
-        nx = x + (dt/6)*(k1 + 2*k2 + 2*k3 + k4)
+        if self.use_scipy_integration:
+            t = np.linspace(0, dt, 2)
+            next_state = odeint(self._rhs, state, t, args=(self.param_vals,))[-1]
+        else:
+            # RK-4th order integration step
+            k1 = f(x, t, args)
+            k2 = f(x + (dt / 2) * k1, t + dt / 2, args)
+            k3 = f(x + (dt / 2) * k2, t + dt / 2, args)
+            k4 = f(x + dt * k3, t + dt / 2, args)
+            nx = x + (dt/6)*(k1 + 2*k2 + 2*k3 + k4)
+            next_state = nx
 
-        next_state = nx
         next_t = t + self.dt
         next_step = self.cur_step + 1
 
@@ -205,7 +211,7 @@ class LinkageEnvV2(gym.Env):
 
     def _draw_n_link(self, s, color = (0, 1, 0)):
         link_lengths = [0.4]*self.n_links
-        start_p = np.array([0, 0])
+        start_p = [0, 0]
         p1 = None
         p2 = None
         for i in range(self.n_links):
@@ -213,10 +219,7 @@ class LinkageEnvV2(gym.Env):
             l = link_lengths[i]
             if p1 is None:
                 p1 = start_p
-            p2 = np.array([p1[0] + l * np.cos(q), p1[1] + l * np.sin(q)])
-            #
-            # self.viewer.draw_line((p1[0], p1[1]), (p2[0], p2[1]))
-
+            p2 = [p1[0] + l * np.cos(q), p1[1] + l * np.sin(q)]
             aline = rendering.Line((p1[0], p1[1]), (p2[0], p2[1]))
             aline.set_color(*color)
             self.viewer.add_onetime(aline)
@@ -227,11 +230,9 @@ class LinkageEnvV2(gym.Env):
         t_s = self.get_cur_target_pos()
 
         if self.viewer is None:
-            self.viewer = rendering.Viewer(400, 400)
-            bound = 0.4 + 0.4 + 0.2  # 2.2 for default
+            self.viewer = rendering.Viewer(800, 800)
+            bound = 0.4 * 5 + 0.1 # 2.2 for default
             self.viewer.set_bounds(-bound, bound, -bound, bound)
-
-
 
         if s is None:
             return None
@@ -239,59 +240,21 @@ class LinkageEnvV2(gym.Env):
         link_lengths = [0.4]*self.n_links
         start_p = np.array([0, 0])
 
-        self.viewer.draw_line((-2.2, 1), (2.2, 1))
+        self.viewer.draw_line((-2.2, 0), (2.2, 0))
 
-        if self.u is not None:
-            u = self.u[0]
-            max_u = self.action_space.high
-            u_norm = u / max_u
-
-            control_line = rendering.Line((0, 0), (u_norm * 0.5, 0))
-            control_line.set_color(0, 0, 1)
-            self.viewer.add_onetime(control_line)
+        # if self.u is not None:
+        #     u = self.u[0]
+        #     max_u = self.action_space.high
+        #     u_norm = u / max_u
+        #
+        #     control_line = rendering.Line((0, 0), (u_norm * 0.5, 0))
+        #     control_line.set_color(0, 0, 1)
+        #     self.viewer.add_onetime(control_line)
 
         self._draw_n_link(s, (0, 1, 0))
         self._draw_n_link(t_s, (1, 0, 0))
-        #
-        # p1 = None
-        # p2 = None
-        # for i in range(self.n_links):
-        #     q = s[i]
-        #     l = link_lengths[i]
-        #     if p1 is None:
-        #         p1 = start_p
-        #     p2 = np.array([p1[0] + l * np.cos(q), p1[1] + l * np.sin(q)])
-        #     self.viewer.draw_line((p1[0], p1[1]), (p2[0], p2[1]))
-        #     p1 = p2
 
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
-
-        #
-        #
-        #
-        # p1 = [0.4 * np.cos(s[0]), 0.4 * np.sin(s[0])]
-        #
-        # # p2 = [p1[0] + 0.4 * np.cos(s[1]), p1[1] + 0.4 * np.sin(s[1])]
-        #
-        # xys = np.array([[0, 0], p1])
-        # # thetas = [s[0] % (2 * np.pi), (s[1]) % (2 * np.pi)]
-        # thetas = [s[0] % (2 * np.pi)]
-        #
-        # # link_lengths = [0.4, 0.4]
-        # link_lengths = [0.4]
-        #
-        # self.viewer.draw_line((-2.2, 1), (2.2, 1))
-        # for ((x, y), th, llen) in zip(xys, thetas, link_lengths):
-        #     l, r, t, b = 0, llen, 0.05, -0.05
-        #     jtransform = rendering.Transform(rotation=th, translation=(x, y))
-        #     link = self.viewer.draw_polygon([(l, b), (l, t), (r, t), (r, b)])
-        #     link.add_attr(jtransform)
-        #     link.set_color(0.8, 0.3, 0.3)
-        #     circ = self.viewer.draw_circle(0.05)
-        #     circ.set_color(0.0, 0.0, 0)
-        #     circ.add_attr(jtransform)
-        #
-        # return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
     def close(self):
         if self.viewer:
